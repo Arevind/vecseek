@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --background: 247 244 238;
+  --card: 255 253 249;
+  --card-secondary: 243 237 227;
+  --accent: 131 97 65;
+  --accent2: 51 68 84;
+  --text: 28 35 42;
+  --muted: 103 112 121;
+  --success: 67 124 97;
+  --warning: 174 118 64;
+  --danger: 182 74 68;
+  --shadow-ring: 131 97 65;
+  --shadow-drop: 90 82 73;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: 16 18 24;
+  --card: 22 25 31;
+  --card-secondary: 30 34 41;
+  --accent: 202 177 140;
+  --accent2: 198 213 226;
+  --text: 242 239 233;
+  --muted: 159 164 170;
+  --success: 103 176 138;
+  --warning: 214 169 109;
+  --danger: 220 121 113;
+  --shadow-ring: 202 177 140;
+  --shadow-drop: 2 6 23;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-background font-sans text-text antialiased;
+  background-image:
+    radial-gradient(circle at top left, rgb(var(--accent) / 0.08), transparent 24%),
+    radial-gradient(circle at 85% 0%, rgb(var(--accent2) / 0.06), transparent 22%),
+    linear-gradient(180deg, rgb(var(--background)) 0%, rgb(var(--background)) 100%);
+}
+
+* {
+  scrollbar-color: rgb(var(--accent) / 0.28) transparent;
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.18);
+}
+
+.panel-surface {
+  @apply border border-black/5 bg-card/90 shadow-glow backdrop-blur-xl;
+}
+
+.quiet-divider {
+  border-color: rgb(0 0 0 / 0.06);
+}
+
+.dark .quiet-divider {
+  border-color: rgb(255 255 255 / 0.08);
+}
+
+.section-label {
+  @apply text-[11px] font-semibold uppercase tracking-[0.24em] text-muted;
+}
+
+.surface-note {
+  @apply text-sm leading-6 text-muted;
+}

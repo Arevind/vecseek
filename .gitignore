@@ -1,0 +1,10 @@
+.env
+.pytest_cache/
+__pycache__/
+*.pyc
+.next/
+node_modules/
+data/
+backend/.venv/
+frontend/.turbo/
+smoke-fixtures/

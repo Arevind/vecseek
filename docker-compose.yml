@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./data/uploads:/app/data/uploads
+      - ./data/qdrant:/app/data/qdrant
+      - ./data/sqlite:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_KB_API_KEY: ${NEXT_PUBLIC_KB_API_KEY:-change-this-secret}
+    env_file:
+      - .env
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NEXT_PUBLIC_KB_API_KEY: ${NEXT_PUBLIC_KB_API_KEY:-change-this-secret}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
