@@ -50,6 +50,45 @@ const endpointGroups = [
 }`,
   },
   {
+    title: "Eval profile",
+    description: "Read or update the folder-specific evaluation provider, model choice, and auto-run toggle.",
+    method: "PATCH",
+    path: "/folders/Pay10%20Support%20Docs/evaluations/profile",
+    body: `{
+  "provider": "ollama",
+  "model_name": "llama3.1",
+  "auto_run_enabled": true
+}`,
+  },
+  {
+    title: "Create eval case",
+    description: "Add a reusable gold test case for retrieval, answer quality, red-team prompts, or the full suite.",
+    method: "POST",
+    path: "/folders/Pay10%20Support%20Docs/evaluations/cases",
+    body: `{
+  "name": "Pay10 definition",
+  "question": "What is Pay10?",
+  "reference_answer": "Pay10 is a payments platform for businesses.",
+  "expected_answer_points": ["payment gateway", "businesses"],
+  "expected_source_files": ["payments-faq.txt"],
+  "tags": ["faq"],
+  "case_type": "all",
+  "enabled": true
+}`,
+  },
+  {
+    title: "Start eval run",
+    description: "Run retrieval, answer, red-team, or the full evaluation suite for the selected folder.",
+    method: "POST",
+    path: "/folders/Pay10%20Support%20Docs/evaluations/runs",
+    body: `{
+  "run_type": "full",
+  "provider": "openai",
+  "model_name": "gpt-4.1-mini",
+  "openai_api_key": "sk-..."
+}`,
+  },
+  {
     title: "Settings",
     description: "Read or update the retrieval defaults that control top K and chunking behavior.",
     method: "PATCH",
@@ -94,7 +133,7 @@ export function ApiReferencePanel() {
           {endpointGroups.map((endpoint) => (
             <div key={`${endpoint.method}-${endpoint.path}`} className="rounded-[28px] border border-black/[0.06] bg-card p-5 dark:border-white/10">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full bg-text px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
+                <span className="rounded-full bg-card-secondary px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-accent2 dark:bg-[rgb(var(--accent)/0.18)] dark:text-[rgb(var(--accent2))]">
                   {endpoint.method}
                 </span>
                 <HoverHint hint={endpoint.description}>

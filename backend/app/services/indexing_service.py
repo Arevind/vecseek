@@ -2,18 +2,23 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from time import perf_counter
 
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Document, DocumentStatus, Folder, FolderStatus, IndexJob, IndexJobStatus, Setting
+from app.models import Document, DocumentStatus, EvalRunType, EvalTriggerType, Folder, FolderStatus, IndexJob, IndexJobStatus, IndexedChunk, Setting
 from app.services.chunking import build_chunk_id, merge_blocks, split_text
+from app.services.chunk_store import replace_folder_chunks
 from app.services.embeddings import embed_texts
+from app.services.eval_queue import eval_queue
+from app.services.eval_service import create_eval_run, get_or_create_eval_profile
 from app.services.job_progress import clear_job_progress, set_job_progress
 from app.services.preprocessing.docx_parser import extract_docx_blocks
 from app.services.preprocessing.pdf_parser import extract_pdf_blocks
 from app.services.qdrant_service import get_client, reset_collection
 from app.services.preprocessing.txt_parser import extract_txt_blocks
+from app.services.runtime_metrics import metrics
 from app.utils.errors import bad_request
 from qdrant_client.http import models as qdrant_models
 
@@ -44,6 +49,7 @@ def _build_embedding_text(folder: Folder, document: Document, block: dict, chunk
 
 
 def index_folder(db: Session, folder: Folder) -> tuple[IndexJob, int]:
+    started_at = perf_counter()
     settings = get_settings()
     stored_settings = db.get(Setting, 1)
     chunk_size = stored_settings.chunk_size if stored_settings else settings.chunk_size
@@ -76,6 +82,7 @@ def index_folder(db: Session, folder: Folder) -> tuple[IndexJob, int]:
     all_documents: list[str] = []
     all_embedding_inputs: list[str] = []
     all_payloads: list[dict] = []
+    indexed_chunks: list[IndexedChunk] = []
 
     try:
         for document in documents:
@@ -85,7 +92,9 @@ def index_folder(db: Session, folder: Folder) -> tuple[IndexJob, int]:
             for block_index, block in enumerate(blocks):
                 chunks = split_text(block["text"], chunk_size, chunk_overlap)
                 for chunk_index, chunk in enumerate(chunks):
+                    chunk_id = build_chunk_id(folder.id, document.id, block_index, chunk_index, chunk)
                     payload = {
+                        "chunk_id": chunk_id,
                         "folder_id": folder.id,
                         "folder_name": folder.display_name,
                         "collection_name": folder.collection_name,
@@ -102,11 +111,29 @@ def index_folder(db: Session, folder: Folder) -> tuple[IndexJob, int]:
                         "updated_at": now.isoformat(),
                         "content": chunk,
                     }
-                    chunk_id = build_chunk_id(folder.id, document.id, block_index, chunk_index, chunk)
                     all_ids.append(chunk_id)
                     all_documents.append(chunk)
                     all_embedding_inputs.append(_build_embedding_text(folder, document, block, chunk))
                     all_payloads.append(payload)
+                    indexed_chunks.append(
+                        IndexedChunk(
+                            id=chunk_id,
+                            folder_id=folder.id,
+                            document_id=document.id,
+                            collection_name=folder.collection_name,
+                            source_file=document.file_name,
+                            file_type=document.file_type,
+                            content_type=block["content_type"],
+                            page_number=int(block.get("page_number", -1)),
+                            table_index=int(block.get("table_index", -1)),
+                            row_index=int(block.get("row_index", -1)),
+                            chunk_index=chunk_index,
+                            file_hash=document.file_hash,
+                            content=chunk,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                    )
             document.status = DocumentStatus.INDEXED
             document.indexed_at = now
             job.processed_files += 1
@@ -140,6 +167,7 @@ def index_folder(db: Session, folder: Folder) -> tuple[IndexJob, int]:
             for point_id, vector, payload in zip(all_ids, embeddings, all_payloads)
         ]
         client.upsert(collection_name=folder.collection_name, points=points, wait=True)
+        replace_folder_chunks(db, folder.id, indexed_chunks)
 
         set_job_progress(
             job.id,
@@ -156,6 +184,18 @@ def index_folder(db: Session, folder: Folder) -> tuple[IndexJob, int]:
         db.commit()
         db.refresh(job)
         set_job_progress(job.id, phase="completed", progress_percent=100, message="Indexing complete")
+        profile = get_or_create_eval_profile(db, folder)
+        if profile.auto_run_enabled and profile.model_name.strip():
+            auto_run = create_eval_run(
+                db=db,
+                folder=folder,
+                run_type=EvalRunType.FULL,
+                trigger_type=EvalTriggerType.AUTO,
+                provider=profile.provider,
+                model_name=profile.model_name,
+            )
+            eval_queue.enqueue(auto_run.id)
+        metrics.record_folder_index_time(perf_counter() - started_at)
         return job, len(all_ids)
     except Exception as exc:
         set_job_progress(job.id, phase="failed", progress_percent=100, message=str(exc))

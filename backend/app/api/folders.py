@@ -10,6 +10,7 @@ from app.config import Settings
 from app.deps import get_app_settings, get_db
 from app.models import Document, DocumentStatus, Folder, FolderStatus, IndexJob
 from app.schemas import ApiMessage, FolderCreateRequest, FolderDetailResponse, FolderResponse
+from app.services.chunk_store import delete_folder_chunks
 from app.services.qdrant_service import delete_collection
 from app.utils.errors import conflict, not_found
 from app.utils.slugs import make_collection_name, normalize_name, slugify
@@ -93,6 +94,7 @@ def delete_folder(
     if not folder:
         raise not_found("Folder not found.")
     delete_collection(folder.collection_name)
+    delete_folder_chunks(db, folder.id)
     target_dir = settings.upload_dir / folder.slug
     if target_dir.exists():
         shutil.rmtree(target_dir, ignore_errors=True)

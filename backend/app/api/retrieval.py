@@ -17,4 +17,11 @@ def retrieve_endpoint(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_app_settings),
 ) -> RetrievalResponse:
-    return retrieve(db, payload.folder_name, payload.query, payload.top_k, settings.max_top_k)
+    return retrieve(
+        db,
+        payload.folder_name,
+        payload.query,
+        payload.top_k,
+        settings.max_top_k,
+        settings.retrieval_timeout_seconds,
+    )

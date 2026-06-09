@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light;
+  --font-sans: "Manrope", "Aptos", "Segoe UI", "Inter", "Helvetica Neue", sans-serif;
+  --font-display: "Syne", "Avenir Next", "Segoe UI", sans-serif;
   --background: 247 244 238;
   --card: 255 253 249;
   --card-secondary: 243 237 227;

@@ -3,10 +3,16 @@
 import axios, { AxiosError } from "axios";
 
 import type {
+  EvalCase,
+  EvalProfile,
+  EvalRunDetail,
+  EvalRunSummary,
+  EvalRunType,
   Folder,
   FolderDetail,
   IndexStartResponse,
   IndexStatusResponse,
+  OllamaModel,
   RetrievalResponse,
   SettingsResponse,
   UploadResponse,
@@ -47,11 +53,7 @@ export async function deleteFolder(folderName: string) {
   return data;
 }
 
-export async function uploadFiles(
-  folderName: string,
-  files: File[],
-  onProgress?: (percent: number) => void,
-) {
+export async function uploadFiles(folderName: string, files: File[], onProgress?: (percent: number) => void) {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
   const { data } = await api.post<UploadResponse>(`/folders/${encodeURIComponent(folderName)}/upload`, formData, {
@@ -101,9 +103,105 @@ export async function updateSettings(payload: {
   default_top_k: number;
   chunk_size: number;
   chunk_overlap: number;
+  vector_candidate_limit: number;
+  retrieval_concurrency_limit: number;
+  indexing_worker_concurrency: number;
+  hybrid_retrieval_enabled: boolean;
+  reranker_enabled: boolean;
 }) {
   const { data } = await api.patch<SettingsResponse>("/settings", payload);
   return data;
+}
+
+export async function getEvalProfile(folderName: string) {
+  const { data } = await api.get<EvalProfile>(`/folders/${encodeURIComponent(folderName)}/evaluations/profile`);
+  return data;
+}
+
+export async function updateEvalProfile(
+  folderName: string,
+  payload: { provider: "ollama" | "openai"; model_name: string; auto_run_enabled: boolean },
+) {
+  const { data } = await api.patch<EvalProfile>(`/folders/${encodeURIComponent(folderName)}/evaluations/profile`, payload);
+  return data;
+}
+
+export async function getEvalCases(folderName: string) {
+  const { data } = await api.get<EvalCase[]>(`/folders/${encodeURIComponent(folderName)}/evaluations/cases`);
+  return data;
+}
+
+export async function createEvalCase(
+  folderName: string,
+  payload: {
+    name: string;
+    question: string;
+    reference_answer?: string;
+    expected_answer_points: string[];
+    expected_source_files: string[];
+    tags: string[];
+    case_type: "retrieval" | "answer" | "redteam" | "all";
+    enabled: boolean;
+  },
+) {
+  const { data } = await api.post<EvalCase>(`/folders/${encodeURIComponent(folderName)}/evaluations/cases`, payload);
+  return data;
+}
+
+export async function updateEvalCase(
+  folderName: string,
+  caseId: string,
+  payload: {
+    name: string;
+    question: string;
+    reference_answer?: string;
+    expected_answer_points: string[];
+    expected_source_files: string[];
+    tags: string[];
+    case_type: "retrieval" | "answer" | "redteam" | "all";
+    enabled: boolean;
+  },
+) {
+  const { data } = await api.patch<EvalCase>(`/folders/${encodeURIComponent(folderName)}/evaluations/cases/${caseId}`, payload);
+  return data;
+}
+
+export async function deleteEvalCase(folderName: string, caseId: string) {
+  const { data } = await api.delete(`/folders/${encodeURIComponent(folderName)}/evaluations/cases/${caseId}`);
+  return data;
+}
+
+export async function listEvalRuns(folderName: string) {
+  const { data } = await api.get<EvalRunSummary[]>(`/folders/${encodeURIComponent(folderName)}/evaluations/runs`);
+  return data;
+}
+
+export async function startEvalRun(
+  folderName: string,
+  payload: {
+    run_type: EvalRunType;
+    provider?: "ollama" | "openai";
+    model_name?: string;
+    openai_api_key?: string;
+  },
+) {
+  const { data } = await api.post<EvalRunSummary>(`/folders/${encodeURIComponent(folderName)}/evaluations/runs`, payload);
+  return data;
+}
+
+export async function getEvalRun(folderName: string, runId: string) {
+  const { data } = await api.get<EvalRunDetail>(`/folders/${encodeURIComponent(folderName)}/evaluations/runs/${runId}`);
+  return data;
+}
+
+export async function getEvalRunStatus(folderName: string, runId: string) {
+  const { data } = await api.get<EvalRunSummary>(`/folders/${encodeURIComponent(folderName)}/evaluations/runs/${runId}/status`);
+  return data;
+}
+
+export async function listOllamaModels() {
+  const { data } = await api.get<{ models: OllamaModel[] }>("/eval/providers/ollama/models");
+  return data.models;
 }
 
 export function getApiErrorMessage(error: unknown) {

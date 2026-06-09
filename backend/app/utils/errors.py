@@ -13,3 +13,19 @@ def not_found(message: str) -> HTTPException:
 
 def conflict(message: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=message)
+
+
+def unauthorized(message: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=message)
+
+
+def bad_gateway(message: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=message)
+
+
+def service_unavailable(message: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=message)
+
+
+def gateway_timeout(message: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=message)

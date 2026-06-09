@@ -6,6 +6,7 @@ import { FileStack } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { DocumentTable } from "@/components/document-table";
+import { EvaluationsPanel } from "@/components/evaluations-panel";
 import { IndexingPanel } from "@/components/indexing-panel";
 import { RetrievalTestPanel } from "@/components/retrieval-test-panel";
 import { StatusBadge } from "@/components/status-badge";
@@ -68,6 +69,7 @@ export default function FolderDetailPage({
 
           <DocumentTable folderName={data.display_name} documents={data.documents} />
           <RetrievalTestPanel initialFolderName={data.display_name} />
+          <EvaluationsPanel folderName={data.display_name} />
         </section>
       )}
     </AppShell>

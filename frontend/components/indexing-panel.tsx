@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
 
@@ -17,17 +17,28 @@ export function IndexingPanel({ folderName, folderStatus }: { folderName: string
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const lastJobStatusRef = useRef<string | null>(null);
+  const [awaitingJob, setAwaitingJob] = useState(false);
+
   const statusQuery = useQuery({
     queryKey: ["index-status", folderName],
     queryFn: () => getIndexStatus(folderName),
     refetchInterval: (query) => {
       const latestJob = query.state.data?.latest_job;
-      return latestJob?.status === "running" ? 1500 : folderStatus === "indexing" ? 1500 : false;
+      const currentFolderStatus = query.state.data?.status ?? folderStatus;
+      const shouldPoll =
+        awaitingJob ||
+        latestJob?.status === "pending" ||
+        latestJob?.status === "running" ||
+        currentFolderStatus === "indexing";
+      return shouldPoll ? 1500 : false;
     },
   });
 
   const mutation = useMutation({
     mutationFn: () => indexFolder(folderName),
+    onMutate: () => {
+      setAwaitingJob(true);
+    },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["folder", folderName] }),
@@ -40,19 +51,29 @@ export function IndexingPanel({ folderName, folderStatus }: { folderName: string
         description: "The folder is indexing in the background now.",
       });
     },
-    onError: (error: unknown) =>
-      pushToast({ tone: "error", title: "Indexing failed", description: getApiErrorMessage(error) }),
+    onError: (error: unknown) => {
+      setAwaitingJob(false);
+      pushToast({ tone: "error", title: "Indexing failed", description: getApiErrorMessage(error) });
+    },
   });
 
   useEffect(() => {
     const latestJob = statusQuery.data?.latest_job;
+    const currentFolderStatus = statusQuery.data?.status ?? folderStatus;
     if (!latestJob) {
+      if (currentFolderStatus !== "indexing") {
+        setAwaitingJob(false);
+      }
       return;
+    }
+    if (latestJob.status === "pending" || latestJob.status === "running") {
+      setAwaitingJob(false);
     }
     const previousStatus = lastJobStatusRef.current;
     if (latestJob.status !== previousStatus) {
       lastJobStatusRef.current = latestJob.status;
       if (latestJob.status === "completed") {
+        setAwaitingJob(false);
         pushToast({
           tone: "success",
           title: folderStatus === "needs_reindex" ? "Folder re-indexed" : "Folder indexed",
@@ -64,6 +85,7 @@ export function IndexingPanel({ folderName, folderStatus }: { folderName: string
         ]);
       }
       if (latestJob.status === "failed") {
+        setAwaitingJob(false);
         pushToast({
           tone: "error",
           title: "Indexing failed",
@@ -75,13 +97,18 @@ export function IndexingPanel({ folderName, folderStatus }: { folderName: string
         ]);
       }
     }
-  }, [folderName, folderStatus, pushToast, queryClient, statusQuery.data?.latest_job]);
+  }, [folderName, folderStatus, pushToast, queryClient, statusQuery.data]);
 
   const actionLabel =
     folderStatus === "needs_reindex" || folderStatus === "indexed" ? "Re-index folder" : "Index folder";
   const latestJob = statusQuery.data?.latest_job;
   const progressPercent = latestJob?.progress_percent ?? 0;
+  const liveFolderStatus = statusQuery.data?.status ?? folderStatus;
   const isRunning = latestJob?.status === "running";
+  const isQueued = latestJob?.status === "pending" || awaitingJob;
+  const showProgress = isRunning || isQueued || liveFolderStatus === "indexing";
+  const progressLabel = latestJob?.status_message ?? (isQueued ? "Queueing indexing job" : "Indexing documents");
+  const progressValue = latestJob ? progressPercent : isQueued ? 8 : 0;
 
   return (
     <Card className="p-5 sm:p-6">
@@ -99,25 +126,27 @@ export function IndexingPanel({ folderName, folderStatus }: { folderName: string
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <StatusBadge status={folderStatus} />
+        <StatusBadge status={liveFolderStatus} />
         {latestJob ? (
           <p className="text-sm text-muted">
             Latest job: {latestJob.status} · files {latestJob.processed_files}/{latestJob.total_files} · chunks {latestJob.total_chunks}
           </p>
+        ) : isQueued ? (
+          <p className="text-sm text-muted">Indexing request accepted. VecSeek is preparing the background job now.</p>
         ) : (
           <p className="text-sm text-muted">No indexing job has run yet.</p>
         )}
       </div>
 
-      {isRunning ? (
+      {showProgress ? (
         <div className="mt-5 rounded-[24px] border border-black/[0.06] bg-card px-4 py-4 dark:border-white/10">
           <div className="mb-2 flex items-center justify-between text-sm text-muted">
-            <span>{latestJob?.status_message ?? "Indexing documents"}</span>
-            <span>{progressPercent}%</span>
+            <span>{progressLabel}</span>
+            <span>{progressValue}%</span>
           </div>
-          <Progress value={progressPercent} />
+          <Progress value={progressValue} />
           <p className="mt-2 text-xs text-muted">
-            Phase: {latestJob?.phase ?? "running"} · files {latestJob?.processed_files ?? 0}/{latestJob?.total_files ?? 0}
+            Phase: {latestJob?.phase ?? (isQueued ? "queued" : "running")} · files {latestJob?.processed_files ?? 0}/{latestJob?.total_files ?? 0}
           </p>
         </div>
       ) : null}
@@ -125,11 +154,11 @@ export function IndexingPanel({ folderName, folderStatus }: { folderName: string
       {latestJob?.error_message ? <p className="mt-4 text-sm text-danger">{latestJob.error_message}</p> : null}
 
       <div className="mt-6 flex justify-end">
-        <Button disabled={mutation.isPending || isRunning} onClick={() => mutation.mutate()}>
-          {mutation.isPending || isRunning ? (
+        <Button disabled={mutation.isPending || isRunning || isQueued} onClick={() => mutation.mutate()}>
+          {mutation.isPending || isRunning || isQueued ? (
             <>
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
+              {isQueued ? "Queueing..." : "Processing..."}
             </>
           ) : folderStatus === "needs_reindex" ? (
             <>

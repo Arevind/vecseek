@@ -18,14 +18,14 @@ export function Select({
 }) {
   return (
     <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
-      <SelectPrimitive.Trigger className="flex w-full items-center justify-between rounded-2xl border border-black/[0.06] bg-card px-4 py-3 text-sm text-text dark:border-white/10">
+      <SelectPrimitive.Trigger className="flex w-full items-center justify-between rounded-2xl border border-black/[0.12] bg-card px-4 py-3 text-sm text-text dark:border-white/10">
         <SelectPrimitive.Value placeholder={placeholder} />
         <SelectPrimitive.Icon>
           <ChevronDown className="h-4 w-4 text-muted" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content className="z-50 overflow-hidden rounded-[24px] border border-black/[0.06] bg-card shadow-float dark:border-white/10">
+        <SelectPrimitive.Content className="z-50 overflow-hidden rounded-[24px] border border-black/[0.12] bg-card shadow-float dark:border-white/10">
           <SelectPrimitive.Viewport className="p-2">
             {items.map((item) => (
               <SelectPrimitive.Item

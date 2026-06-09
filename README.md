@@ -1,247 +1,172 @@
-# Knowledgebase Studio
+# VecSeek
 
-Knowledgebase Studio is a workspace-based document indexing and retrieval platform built with FastAPI, Qdrant, SQLite, and Next.js. Each workspace folder represents one knowledgebase, stores its raw files on disk, indexes cleaned content into one Qdrant collection, and exposes a retrieval API for internal tools and services.
+VecSeek is a self-hosted multi-workspace RAG platform for uploading files, indexing them into vectors, and serving retrieval-ready results through a UI or API.
 
-## Features
+## What It Does
 
-- Create unique folders/workspaces with case-insensitive name protection
-- Upload PDF, DOCX, and TXT files into a folder
-- Detect duplicate files inside a folder using SHA-256 hashes
-- Extract PDF text and tables, DOCX paragraphs and tables, and TXT content
-- Convert tables into row-wise key-value records before chunking
-- Chunk processed content and store vectors in Qdrant using `BAAI/bge-base-en-v1.5`
-- Re-index folders cleanly so stale chunks from deleted or old files are removed
-- Retrieve relevant chunks by folder name through the UI or `POST /retrieve`
-- Update only `default_top_k` from the settings screen
-- Run locally or on a cloud VM with Docker Compose
+- Create separate workspaces, each backed by its own Qdrant collection
+- Upload PDF, DOCX, and TXT files with duplicate detection
+- Extract text and tables, chunk them, and store both dense vectors and searchable chunk records
+- Retrieve with hybrid search: dense vectors plus SQLite FTS keyword matching
+- Inspect retrieval results with citations, explanations, and chunk lineage
+- Tune chunking, candidate depth, hybrid search, reranking, and concurrency settings from the app
+- Configure per-folder evaluations with Ollama or OpenAI
+- Build folder-specific eval datasets for retrieval, answer quality, and red-team testing
+- Track full evaluation run history with scores, failures, and run artifacts
 
-## Architecture
+## Current Runtime Design
 
-- `frontend/`: Next.js App Router UI using TypeScript, Tailwind CSS, Radix-based shadcn-style components, and TanStack Query
-- `backend/`: FastAPI API with SQLAlchemy metadata storage, Qdrant vector storage, and document preprocessing services
-- `data/uploads`: raw files grouped by folder slug
-- `data/qdrant`: shared persistent Qdrant directory
-- `data/sqlite`: SQLite database directory
+- `frontend/`: Next.js dashboard for workspace management, retrieval testing, settings, and API reference
+- `backend/`: FastAPI API for uploads, indexing, retrieval, settings, and diagnostics
+- `Qdrant`: vector storage, now supporting both local mode and server mode
+- `SQLite`: metadata store plus FTS-backed keyword retrieval over indexed chunks
+- `Index queue`: bounded in-process job queue with worker concurrency controls
 
-Each folder maps to one Qdrant collection inside the shared persistent Qdrant directory. The backend stores folder metadata in SQLite and chunk metadata in Qdrant. Retrieval uses the same embedding model for indexing and querying.
+For development and small single-node installs, local Qdrant mode still works well. For production or higher concurrency, use Qdrant server mode.
 
-## Tech Stack
+## Retrieval Strategy
 
-- Frontend: Next.js, TypeScript, Tailwind CSS, TanStack Query, Axios
-- Backend: FastAPI, Python, Pydantic, SQLAlchemy, SQLite
-- Vector store: Qdrant local persistent client
-- Embeddings: Sentence Transformers `BAAI/bge-base-en-v1.5`
-- Parsing: `pypdf`, `pdfplumber`, `python-docx`
-- Deployment: Docker, Docker Compose, Gunicorn, Uvicorn
+VecSeek now uses a hybrid retrieval pipeline:
 
-## Folder Structure
+1. Embed the query with the configured dense model
+2. Search the workspace collection in Qdrant
+3. Search the indexed chunk corpus with SQLite FTS
+4. Merge dense and keyword candidates
+5. Rerank with lightweight semantic + lexical heuristics
+6. Return top results with metadata, citations, and explanations
 
-```text
-.
-├── backend
-│   ├── app
-│   │   ├── api
-│   │   ├── services
-│   │   │   └── preprocessing
-│   │   └── utils
-│   ├── tests
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend
-│   ├── app
-│   ├── components
-│   ├── lib
-│   └── Dockerfile
-├── docker-compose.yml
-└── .env.example
-```
+The default embedding model remains `BAAI/bge-base-en-v1.5`, but the backend now uses an embedding abstraction so the model can be swapped later without changing the retrieval API.
 
 ## Environment Variables
 
-Backend:
+Core backend:
 
 - `BACKEND_HOST=0.0.0.0`
-- `BACKEND_PORT=8000`
-- `KB_API_KEY=change-this-secret`
-- `CORS_ORIGINS=["http://localhost:3000","http://SERVER_IP:3000"]`
+- `BACKEND_PORT=8080`
 - `UPLOAD_DIR=/app/data/uploads`
-- `QDRANT_DIR=/app/data/qdrant`
 - `SQLITE_PATH=/app/data/knowledgebase.db`
 - `EMBEDDING_MODEL=BAAI/bge-base-en-v1.5`
 - `DEFAULT_TOP_K=5`
 - `MAX_TOP_K=20`
-- `CHUNK_SIZE=700`
-- `CHUNK_OVERLAP=100`
+- `CHUNK_SIZE=1400`
+- `CHUNK_OVERLAP=250`
+- `VECTOR_CANDIDATE_LIMIT=32`
+- `HYBRID_RETRIEVAL_ENABLED=true`
+- `RERANKER_ENABLED=true`
+- `RETRIEVAL_CONCURRENCY_LIMIT=12`
+- `INDEXING_WORKER_CONCURRENCY=2`
+- `RETRIEVAL_TIMEOUT_SECONDS=8`
+- `EVAL_CONCURRENCY_LIMIT=1`
+- `EVAL_TIMEOUT_SECONDS=45`
+- `OLLAMA_BASE_URL=http://localhost:11434`
+- `OPENAI_BASE_URL=https://api.openai.com/v1`
+- `PROMPTFOO_COMMAND=npx promptfoo`
+
+Qdrant:
+
+- `QDRANT_MODE=local` or `server`
+- `QDRANT_DIR=/app/data/qdrant`
+- `QDRANT_URL=http://qdrant:6333`
+- `QDRANT_API_KEY=...` optional
+- `QDRANT_PREFER_GRPC=false`
 
 Frontend:
 
-- `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
-- `NEXT_PUBLIC_KB_API_KEY=change-this-secret`
+- `NEXT_PUBLIC_API_BASE_URL=http://localhost:8080`
+- `NEXT_PUBLIC_KB_API_KEY=` optional for deployments that still want shared-key protection
 
-## Local Development
-
-1. Copy `.env.example` to `.env`.
-2. Review `KB_API_KEY`, CORS origins, and frontend base URL values.
-3. Start the stack:
+## Quickstart
 
 ```bash
 docker compose up -d --build
 ```
 
-4. Open:
-   - Frontend: [http://localhost:3000](http://localhost:3000)
-   - Backend docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-   - Health check: [http://localhost:8000/health](http://localhost:8000/health)
+Open:
 
-## Docker Compose and Cloud Background Service
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Health: [http://localhost:8080/health](http://localhost:8080/health)
+- Diagnostics: [http://localhost:8080/health/diagnostics](http://localhost:8080/health/diagnostics)
+- Docs: [http://localhost:8080/docs](http://localhost:8080/docs)
 
-Run in the background:
-
-```bash
-docker compose up -d --build
-```
-
-Check logs:
-
-```bash
-docker compose logs -f backend
-docker compose logs -f frontend
-```
-
-Stop:
-
-```bash
-docker compose down
-```
-
-Cloud access examples:
-
-- Retrieval API: `http://SERVER_IP:8000/retrieve`
-- Frontend: `http://SERVER_IP:3000`
-
-The backend binds to `0.0.0.0` through Gunicorn/Uvicorn, so team members can access it from their own machines when the server port is exposed.
-
-## API Overview
-
-### Health
+## API Highlights
 
 - `GET /health`
-
-Response:
-
-```json
-{
-  "status": "ok",
-  "service": "Knowledgebase Studio"
-}
-```
-
-### Folders
-
+- `GET /health/diagnostics`
 - `POST /folders`
-- `GET /folders`
-- `GET /folders/{folder_name}`
-- `DELETE /folders/{folder_name}`
-
-### Documents
-
 - `POST /folders/{folder_name}/upload`
-- `GET /folders/{folder_name}/documents`
-- `DELETE /folders/{folder_name}/documents/{document_id}`
-
-### Indexing
-
 - `POST /folders/{folder_name}/index`
 - `GET /folders/{folder_name}/index/status`
-
-### Retrieval
-
 - `POST /retrieve`
+- `GET /settings`
+- `PATCH /settings`
+- `GET /eval/providers/ollama/models`
+- `GET /folders/{folder_name}/evaluations/profile`
+- `PATCH /folders/{folder_name}/evaluations/profile`
+- `GET /folders/{folder_name}/evaluations/cases`
+- `POST /folders/{folder_name}/evaluations/cases`
+- `PATCH /folders/{folder_name}/evaluations/cases/{case_id}`
+- `DELETE /folders/{folder_name}/evaluations/cases/{case_id}`
+- `GET /folders/{folder_name}/evaluations/runs`
+- `POST /folders/{folder_name}/evaluations/runs`
+- `GET /folders/{folder_name}/evaluations/runs/{run_id}`
 
-Example curl:
+Example retrieval request:
 
 ```bash
-curl -X POST "http://SERVER_IP:8000/retrieve" \
+curl -X POST "http://localhost:8080/retrieve" \
   -H "Content-Type: application/json" \
   -d '{
-    "folder_name": "Aadhaar SOP Docs",
-    "query": "What are the documents required?",
+    "folder_name": "Health",
+    "query": "How to check my BMI?",
     "top_k": 5
   }'
 ```
 
-### Settings
+Example settings update:
 
-- `GET /settings`
-- `PATCH /settings`
+```bash
+curl -X PATCH "http://localhost:8080/settings" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_top_k": 5,
+    "chunk_size": 1400,
+    "chunk_overlap": 250,
+    "vector_candidate_limit": 32,
+    "retrieval_concurrency_limit": 12,
+    "indexing_worker_concurrency": 2,
+    "hybrid_retrieval_enabled": true,
+    "reranker_enabled": true
+  }'
+```
 
-## Preprocessing and Table Handling
+## Benchmarking
 
-- PDF:
-  - Extracts page text using `pypdf`
-  - Extracts tables using `pdfplumber`
-  - Preserves page number metadata
-- DOCX:
-  - Extracts paragraph text
-  - Extracts tables separately
-  - Uses first row as headers when possible
-  - Falls back to `Column 1`, `Column 2`, and so on when headers are missing or duplicated
-- TXT:
-  - Reads with UTF-8 first and falls back gracefully
+A small benchmark helper is included:
 
-Tables are converted into row-wise key-value text records before chunking. Empty cells become `N/A`, which keeps the semantic structure useful during retrieval.
+```bash
+python backend/benchmarks/benchmark_retrieval.py \
+  --base-url http://localhost:8080 \
+  --folder Health \
+  --query "How to check my BMI?" \
+  --runs 20
+```
 
-## Qdrant Collection Strategy
+## Sample Data
 
-- One persistent Qdrant directory for the whole application
-- One collection per folder using a slug-derived collection name
-- Re-indexing recreates the collection so stale chunks are fully removed
-- Chunk metadata includes folder, collection, file, content type, page, table, row, and chunk index details
+Use the included sample corpus in [sample_data/payments-faq.txt](C:/Users/arevi/OneDrive/Desktop/knowledgebase-creator/sample_data/payments-faq.txt) for quick smoke testing.
 
-## Edge Cases Handled
+## Recommended Production Direction
 
-- Duplicate folder names
-- Empty folder names
-- Unsupported file types
-- Duplicate file uploads inside the same folder
-- Empty files
-- Empty extracted document output
-- Retrieval before indexing
-- Invalid or missing API key on protected endpoints
-- `top_k` above the configured maximum
-- Re-index after file deletion or new uploads
+- Run Qdrant in server mode instead of embedded local mode
+- Keep indexing backgrounded and bounded so retrieval stays responsive
+- Use diagnostics to watch queue depth, active retrievals, and average vector/query timings
+- Move metadata storage from SQLite to Postgres once write contention becomes meaningful
 
-## Testing
+## Open-Source Roadmap
 
-Minimal backend tests are included for:
-
-- health endpoint
-- folder creation and duplicate rejection
-- settings validation
-- API key enforcement
-- unsupported upload rejection
-- table record conversion fallback behavior
-
-Suggested end-to-end checklist:
-
-1. `docker compose up -d --build`
-2. Create `Aadhaar SOP Docs`
-3. Upload PDF, DOCX, and TXT files
-4. Re-upload the same file and confirm duplicate warning
-5. Run indexing and confirm folder status becomes `indexed`
-6. Add or delete a file and confirm status becomes `needs_reindex`
-7. Re-index and verify retrieval returns updated chunks only
-8. Change `default_top_k` in Settings and test retrieval without passing `top_k`
-
-## Future Improvements
-
-- Background indexing with Celery or RQ
-- User authentication
-- Role-based API keys
 - OCR for scanned PDFs
-- Hybrid search with BM25 plus vector search
-- Reranking model
-- Document versioning
-- Multi-user workspaces
-- Cloud object storage
-- Streaming indexing status via WebSocket
+- richer rerankers
+- metadata filters in retrieval
+- import/export and backup
+- optional auth/token flows for public deployments
+- richer benchmark datasets and evaluation scripts

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from threading import Thread
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
-from app.database import SessionLocal
 from app.models import Folder, FolderStatus, IndexJob, IndexJobStatus
 from app.schemas import IndexResponse, IndexStatusResponse, IndexJobResponse
-from app.services.indexing_service import index_folder
+from app.services.index_queue import index_queue
 from app.services.job_progress import get_job_progress
 from app.utils.errors import bad_request, not_found
 from app.utils.slugs import normalize_name
@@ -22,17 +19,6 @@ def _resolve_folder(db: Session, folder_name: str) -> Folder:
     if not folder:
         raise not_found("Folder not found.")
     return folder
-
-
-def _run_index_job(folder_id: str) -> None:
-    db = SessionLocal()
-    try:
-        folder = db.query(Folder).filter(Folder.id == folder_id).first()
-        if not folder:
-            return
-        index_folder(db, folder)
-    finally:
-        db.close()
 
 
 @router.post("", response_model=IndexResponse)
@@ -48,8 +34,7 @@ def index_folder_endpoint(folder_name: str, db: Session = Depends(get_db)) -> In
     if total_files == 0:
         raise bad_request("Cannot index a folder with no documents.")
 
-    thread = Thread(target=_run_index_job, args=(folder.id,), daemon=True)
-    thread.start()
+    index_queue.enqueue(folder.id)
 
     db.expire_all()
     refreshed_folder = _resolve_folder(db, folder_name)

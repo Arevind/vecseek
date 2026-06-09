@@ -43,11 +43,11 @@ const navItems = [
 
 function VecSeekLogo() {
   return (
-    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-black/5 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.42)] dark:border-white/10 dark:bg-card-secondary">
+    <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[20px] border border-black/5 bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.42)] dark:border-white/10 dark:bg-card-secondary">
       <svg
         viewBox="0 0 64 64"
         aria-hidden="true"
-        className="h-8 w-8"
+        className="h-9 w-9"
         fill="none"
       >
         <path
@@ -111,8 +111,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid gap-5 lg:grid-cols-[248px,minmax(0,1fr)]">
           <aside className="panel-surface flex h-fit flex-col rounded-[30px] p-4 lg:sticky lg:top-4 lg:min-h-[calc(100vh-2rem)]">
-            <div className="flex items-center justify-between rounded-[24px] border border-black/5 bg-card-secondary/55 px-4 py-4 dark:border-white/10">
-              <div>
+            <div className="flex items-center justify-between gap-4 rounded-[24px] border border-black/5 bg-card-secondary/55 px-4 py-4 dark:border-white/10">
+              <div className="min-w-0">
                 <p className="font-display text-[1.9rem] leading-none tracking-[0.01em] text-text">VecSeek</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.28em] text-muted">Document Operations</p>
               </div>

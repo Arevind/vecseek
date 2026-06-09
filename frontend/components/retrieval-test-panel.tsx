@@ -141,8 +141,14 @@ export function RetrievalTestPanel({ initialFolderName }: { initialFolderName?: 
                       </span>
                     </div>
                     <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-text">{result.content}</p>
+                    {result.metadata.explanation ? (
+                      <p className="mt-3 text-sm leading-6 text-muted">{String(result.metadata.explanation)}</p>
+                    ) : null}
                     <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-muted">
                       Page {result.metadata.page_number} · Table {result.metadata.table_index} · Row {result.metadata.row_index} · Chunk {result.metadata.chunk_index}
+                    </p>
+                    <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-muted">
+                      Dense {Number(result.metadata.dense_score ?? 0).toFixed(3)} · Keyword {Number(result.metadata.keyword_score ?? 0).toFixed(3)}
                     </p>
                   </div>
                 ))

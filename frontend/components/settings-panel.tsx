@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SlidersHorizontal } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,11 @@ export function SettingsPanel() {
   const [defaultTopK, setDefaultTopK] = useState("5");
   const [chunkSize, setChunkSize] = useState("1400");
   const [chunkOverlap, setChunkOverlap] = useState("250");
+  const [vectorCandidateLimit, setVectorCandidateLimit] = useState("32");
+  const [retrievalConcurrencyLimit, setRetrievalConcurrencyLimit] = useState("12");
+  const [indexingWorkerConcurrency, setIndexingWorkerConcurrency] = useState("2");
+  const [hybridEnabled, setHybridEnabled] = useState(true);
+  const [rerankerEnabled, setRerankerEnabled] = useState(true);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -25,6 +29,11 @@ export function SettingsPanel() {
       setDefaultTopK(String(data.default_top_k));
       setChunkSize(String(data.chunk_size));
       setChunkOverlap(String(data.chunk_overlap));
+      setVectorCandidateLimit(String(data.vector_candidate_limit));
+      setRetrievalConcurrencyLimit(String(data.retrieval_concurrency_limit));
+      setIndexingWorkerConcurrency(String(data.indexing_worker_concurrency));
+      setHybridEnabled(data.hybrid_retrieval_enabled);
+      setRerankerEnabled(data.reranker_enabled);
     }
   }, [data]);
 
@@ -63,10 +72,6 @@ export function SettingsPanel() {
               </p>
             </div>
           </HoverHint>
-
-          <div className="mt-6 flex h-11 w-11 items-center justify-center rounded-2xl bg-card-secondary text-accent">
-            <SlidersHorizontal className="h-5 w-5" />
-          </div>
         </div>
 
         <div className="rounded-[28px] border border-black/[0.06] bg-card-secondary/35 p-5 dark:border-white/10">
@@ -88,6 +93,34 @@ export function SettingsPanel() {
               <Input value={chunkOverlap} onChange={(event) => setChunkOverlap(event.target.value)} inputMode="numeric" />
               <p className="mt-2 text-xs text-muted">Keep overlap smaller than chunk size to avoid invalid settings.</p>
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-text">Vector candidate limit</label>
+              <Input value={vectorCandidateLimit} onChange={(event) => setVectorCandidateLimit(event.target.value)} inputMode="numeric" />
+              <p className="mt-2 text-xs text-muted">How many dense matches VecSeek inspects before merge and rerank.</p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-text">Retrieval concurrency</label>
+              <Input value={retrievalConcurrencyLimit} onChange={(event) => setRetrievalConcurrencyLimit(event.target.value)} inputMode="numeric" />
+              <p className="mt-2 text-xs text-muted">Caps simultaneous RAG calls before short backpressure is applied.</p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-text">Indexing worker concurrency</label>
+              <Input value={indexingWorkerConcurrency} onChange={(event) => setIndexingWorkerConcurrency(event.target.value)} inputMode="numeric" />
+              <p className="mt-2 text-xs text-muted">Limits how many folder indexing jobs can run at the same time.</p>
+            </div>
+
+            <label className="flex items-center justify-between rounded-[22px] border border-black/[0.06] bg-card px-4 py-3 text-sm text-text dark:border-white/10">
+              <span>Hybrid retrieval</span>
+              <input type="checkbox" checked={hybridEnabled} onChange={(event) => setHybridEnabled(event.target.checked)} />
+            </label>
+
+            <label className="flex items-center justify-between rounded-[22px] border border-black/[0.06] bg-card px-4 py-3 text-sm text-text dark:border-white/10">
+              <span>Reranker</span>
+              <input type="checkbox" checked={rerankerEnabled} onChange={(event) => setRerankerEnabled(event.target.checked)} />
+            </label>
           </div>
 
           {message ? <p className="mt-5 text-sm text-muted">{message}</p> : null}
@@ -100,6 +133,11 @@ export function SettingsPanel() {
                   default_top_k: Number(defaultTopK),
                   chunk_size: Number(chunkSize),
                   chunk_overlap: Number(chunkOverlap),
+                  vector_candidate_limit: Number(vectorCandidateLimit),
+                  retrieval_concurrency_limit: Number(retrievalConcurrencyLimit),
+                  indexing_worker_concurrency: Number(indexingWorkerConcurrency),
+                  hybrid_retrieval_enabled: hybridEnabled,
+                  reranker_enabled: rerankerEnabled,
                 })
               }
             >

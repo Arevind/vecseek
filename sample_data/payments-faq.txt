@@ -1,0 +1,5 @@
+What is Pay10?
+Pay10 is a payments platform that helps businesses accept and reconcile digital payments.
+
+What does VecSeek index?
+VecSeek indexes PDF, DOCX, and TXT files into folder-level workspaces for retrieval.

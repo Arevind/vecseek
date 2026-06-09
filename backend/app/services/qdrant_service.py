@@ -7,11 +7,19 @@ from qdrant_client.http import models as qdrant_models
 
 from app.config import get_settings
 from app.services.embeddings import get_embedding_dimension
+from app.services.runtime_metrics import metrics, timed_metric
 
 
 @lru_cache
 def get_client() -> QdrantClient:
     settings = get_settings()
+    if settings.qdrant_mode == "server":
+        return QdrantClient(
+            url=settings.qdrant_url,
+            api_key=settings.qdrant_api_key,
+            prefer_grpc=settings.qdrant_prefer_grpc,
+            timeout=settings.retrieval_timeout_seconds,
+        )
     return QdrantClient(path=str(settings.qdrant_dir))
 
 
@@ -53,9 +61,11 @@ def search_collection(
 ) -> list[qdrant_models.ScoredPoint]:
     client = get_client()
     ensure_collection(collection_name)
-    return client.query_points(
-        collection_name=collection_name,
-        query=query_vector,
-        limit=limit,
-        with_payload=True,
-    ).points
+    with timed_metric(metrics.record_qdrant_time):
+        response = client.query_points(
+            collection_name=collection_name,
+            query=query_vector,
+            limit=limit,
+            with_payload=True,
+        )
+    return response.points
